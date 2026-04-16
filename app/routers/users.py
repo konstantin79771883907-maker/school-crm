@@ -9,12 +9,13 @@ Provides REST API endpoints for user management:
 - DELETE /api/users/{id} - Delete user
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlmodel import Session, select
 from typing import List, Optional
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
+from fastapi.security import OAuth2PasswordRequestForm
 
 from app.database import get_session
 from app.models.user import User
@@ -171,7 +172,7 @@ def delete_user(user_id: int, session: Session = Depends(get_session)):
 
 
 @router.post("/token", response_model=Token)
-def login_for_access_token(form_data: UserLogin, session: Session = Depends(get_session)):
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
     """Login and get access token."""
     user = session.exec(select(User).where(User.username == form_data.username)).first()
     
