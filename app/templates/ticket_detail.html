@@ -1,0 +1,168 @@
+<!-- 
+Ticket detail page - View and manage a single support ticket.
+Shows ticket information, comments, and allows status updates.
+-->
+{% extends "base.html" %}
+
+{% block title %}Заявка #{{ ticket.id }} - School Support CRM{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Header with back button -->
+    <div class="mb-6 flex justify-between items-center">
+        <a href="/tickets" class="text-blue-600 hover:text-blue-800 font-medium">
+            ← Назад к списку
+        </a>
+        <div class="space-x-2">
+            <a href="/tickets/{{ ticket.id }}/edit" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition font-medium">
+                ✏️ Редактировать
+            </a>
+        </div>
+    </div>
+
+    <!-- Ticket Info Card -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">{{ ticket.title }}</h1>
+                <p class="text-gray-500">Заявка #{{ ticket.id }} • Создана {{ ticket.created_at.strftime('%d.%m.%Y в %H:%M') }}</p>
+            </div>
+            <div class="flex space-x-2">
+                {% if ticket.status == 'open' %}
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">Открыта</span>
+                {% elif ticket.status == 'in_progress' %}
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">В работе</span>
+                {% elif ticket.status == 'resolved' %}
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800">Решена</span>
+                {% else %}
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-gray-100 text-gray-800">Закрыта</span>
+                {% endif %}
+                
+                {% if ticket.priority == 'high' %}
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-800">Высокий приоритет</span>
+                {% elif ticket.priority == 'medium' %}
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">Средний приоритет</span>
+                {% else %}
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-800">Низкий приоритет</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 pt-4 mt-4">
+            <h3 class="text-sm font-medium text-gray-500 mb-2">Описание</h3>
+            <p class="text-gray-800 whitespace-pre-wrap">{{ ticket.description }}</p>
+        </div>
+    </div>
+
+    <!-- Status Update Form -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">🔄 Изменить статус</h3>
+        <form id="statusForm" class="flex space-x-4">
+            <select id="status" name="status" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="open" {% if ticket.status == 'open' %}selected{% endif %}>Открыта</option>
+                <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>В работе</option>
+                <option value="resolved" {% if ticket.status == 'resolved' %}selected{% endif %}>Решена</option>
+                <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>Закрыта</option>
+            </select>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
+                Обновить
+            </button>
+        </form>
+    </div>
+
+    <!-- Comments Section -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">💬 Комментарии ({{ comments|length }})</h3>
+        
+        <!-- Comments List -->
+        <div class="space-y-4 mb-6">
+            {% for comment in comments %}
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm font-medium text-gray-900">Пользователь #{{ comment.user_id }}</span>
+                    <span class="text-xs text-gray-500">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                </div>
+                <p class="text-gray-800">{{ comment.content }}</p>
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-4">Комментариев пока нет</p>
+            {% endfor %}
+        </div>
+
+        <!-- Add Comment Form -->
+        <form id="commentForm" class="border-t border-gray-200 pt-4">
+            <textarea 
+                id="content" 
+                name="content" 
+                rows="3" 
+                required
+                placeholder="Добавить комментарий..."
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition mb-4"
+            ></textarea>
+            <input type="hidden" name="ticket_id" value="{{ ticket.id }}">
+            <input type="hidden" name="user_id" value="1">
+            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition font-medium">
+                Добавить комментарий
+            </button>
+        </form>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+// Status update form
+document.getElementById('statusForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const status = document.getElementById('status').value;
+    
+    fetch('/api/tickets/{{ ticket.id }}', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: status })
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Ошибка при обновлении статуса');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при обновлении статуса');
+    });
+});
+
+// Comment form
+document.getElementById('commentForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const content = document.getElementById('content').value;
+    
+    fetch('/api/comments/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            ticket_id: {{ ticket.id }},
+            user_id: 1,
+            content: content
+        })
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Ошибка при добавлении комментария');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при добавлении комментария');
+    });
+});
+</script>
+{% endblock %}
