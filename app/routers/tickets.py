@@ -46,12 +46,16 @@ def get_tickets(
 def create_ticket(
     ticket_data: TicketCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_auth)
 ):
     """Create a new ticket."""
-    ticket = Ticket.model_validate(ticket_data)
-    ticket.user_id = current_user.id
-    ticket.updated_at = datetime.utcnow()
+    ticket = Ticket(
+        title=ticket_data.title,
+        description=ticket_data.description,
+        category_id=ticket_data.category_id,
+        user_id=current_user.id,
+        updated_at=datetime.utcnow()
+    )
     
     session.add(ticket)
     session.commit()
