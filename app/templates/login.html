@@ -1,0 +1,97 @@
+<!-- 
+Login page template for School Support CRM.
+Provides a form for user authentication.
+-->
+{% extends "base.html" %}
+
+{% block title %}Вход - School Support CRM{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-8">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">🔐 Вход в систему</h1>
+        
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
+                    Имя пользователя
+                </label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Введите имя пользователя"
+                >
+            </div>
+            
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+                    Пароль
+                </label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Введите пароль"
+                >
+            </div>
+            
+            <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                Неверное имя пользователя или пароль
+            </div>
+            
+            <button 
+                type="submit"
+                class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200 font-medium"
+            >
+                Войти
+            </button>
+        </form>
+        
+        <div class="mt-6 pt-6 border-t border-gray-200">
+            <p class="text-sm text-gray-600 text-center">
+                Тестовые учетные данные:<br>
+                <strong>admin / admin123</strong> (Администратор)<br>
+                <strong>support / support123</strong> (Поддержка)<br>
+                <strong>user / user123</strong> (Пользователь)
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('error-message');
+    
+    try {
+        const response = await fetch('/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            window.location.href = '/';
+        } else {
+            errorDiv.textContent = data.detail || 'Ошибка входа';
+            errorDiv.classList.remove('hidden');
+        }
+    } catch (error) {
+        errorDiv.textContent = 'Ошибка соединения с сервером';
+        errorDiv.classList.remove('hidden');
+    }
+});
+</script>
+{% endblock %}

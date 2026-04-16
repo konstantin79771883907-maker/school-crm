@@ -23,7 +23,7 @@ class TicketBase(BaseModel):
 
 class TicketCreate(TicketBase):
     """Schema for creating a new ticket."""
-    pass
+    user_id: Optional[int] = None
 
 
 class TicketUpdate(BaseModel):

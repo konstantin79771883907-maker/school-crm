@@ -15,3 +15,9 @@ python-multipart==0.0.6
 
 # Aiofiles - Async file operations
 aiofiles==23.2.1
+
+# Passlib - Password hashing and verification
+passlib[bcrypt]==1.7.4
+
+# Python-JOSE - JWT token handling
+python-jose[cryptography]==3.3.0
