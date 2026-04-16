@@ -15,6 +15,8 @@ from typing import List, Optional
 from app.database import get_session
 from app.models.comment import Comment
 from app.schemas.comment import CommentCreate, CommentResponse
+from app.routers.users import require_auth, require_role
+from app.models.user import User
 
 router = APIRouter(prefix="/api/comments", tags=["comments"])
 
@@ -22,9 +24,10 @@ router = APIRouter(prefix="/api/comments", tags=["comments"])
 @router.get("/", response_model=List[CommentResponse])
 def get_comments(
     ticket_id: Optional[int] = Query(None),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_auth)
 ):
-    """Get all comments, optionally filtered by ticket ID."""
+    """Get all comments, optionally filtered by ticket ID (requires authentication)."""
     query = select(Comment).order_by(Comment.created_at)
     
     if ticket_id:
@@ -35,9 +38,14 @@ def get_comments(
 
 
 @router.post("/", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
-def create_comment(comment_data: CommentCreate, session: Session = Depends(get_session)):
-    """Create a new comment on a ticket."""
+def create_comment(
+    comment_data: CommentCreate, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_auth)
+):
+    """Create a new comment on a ticket (requires authentication)."""
     comment = Comment.model_validate(comment_data)
+    comment.user_id = current_user.id
     
     session.add(comment)
     session.commit()
@@ -46,8 +54,12 @@ def create_comment(comment_data: CommentCreate, session: Session = Depends(get_s
 
 
 @router.get("/{comment_id}", response_model=CommentResponse)
-def get_comment(comment_id: int, session: Session = Depends(get_session)):
-    """Get a specific comment by ID."""
+def get_comment(
+    comment_id: int, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_auth)
+):
+    """Get a specific comment by ID (requires authentication)."""
     comment = session.get(Comment, comment_id)
     if not comment:
         raise HTTPException(
@@ -58,8 +70,12 @@ def get_comment(comment_id: int, session: Session = Depends(get_session)):
 
 
 @router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_comment(comment_id: int, session: Session = Depends(get_session)):
-    """Delete a comment."""
+def delete_comment(
+    comment_id: int, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["admin", "support"]))
+):
+    """Delete a comment (admin/support only)."""
     comment = session.get(Comment, comment_id)
     if not comment:
         raise HTTPException(

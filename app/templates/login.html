@@ -72,19 +72,17 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
     const errorDiv = document.getElementById('error-message');
     
     try {
-        const formData = new FormData();
-        formData.append('username', username);
-        formData.append('password', password);
-        
-        const response = await fetch('/api/users/token', {
+        const response = await fetch('/api/login', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
         });
         
         const data = await response.json();
         
-        if (response.ok && data.access_token) {
-            localStorage.setItem('access_token', data.access_token);
+        if (response.ok && data.success) {
             window.location.href = '/tickets';
         } else {
             errorDiv.textContent = data.detail || 'Ошибка входа';
