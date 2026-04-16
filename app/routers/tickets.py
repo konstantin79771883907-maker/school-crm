@@ -9,7 +9,7 @@ Provides REST API endpoints for ticket management:
 - DELETE /api/tickets/{id} - Delete ticket
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime
@@ -17,6 +17,8 @@ from datetime import datetime
 from app.database import get_session
 from app.models.ticket import Ticket
 from app.schemas.ticket import TicketCreate, TicketUpdate, TicketResponse
+from app.routers.users import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
@@ -40,9 +42,14 @@ def get_tickets(
 
 
 @router.post("/", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
-def create_ticket(ticket_data: TicketCreate, session: Session = Depends(get_session)):
+def create_ticket(
+    ticket_data: TicketCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """Create a new ticket."""
     ticket = Ticket.model_validate(ticket_data)
+    ticket.user_id = current_user.id
     ticket.updated_at = datetime.utcnow()
     
     session.add(ticket)

@@ -27,11 +27,17 @@ All other templates extend this base template.
         <div class="container mx-auto px-4">
             <div class="flex justify-between items-center py-4">
                 <a href="/" class="text-xl font-bold">🏫 School Support CRM</a>
-                <div class="space-x-4">
+                <div class="space-x-4 flex items-center">
                     <a href="/" class="hover:text-blue-200 transition">Dashboard</a>
                     <a href="/tickets" class="hover:text-blue-200 transition">Заявки</a>
                     <a href="/tickets/new" class="hover:text-blue-200 transition">Создать заявку</a>
                     <a href="/categories" class="hover:text-blue-200 transition">Категории</a>
+                    {% if current_user %}
+                        <span class="ml-4 px-3 py-1 bg-blue-700 rounded">{{ current_user.username }} ({{ current_user.role }})</span>
+                        <a href="/logout" class="ml-2 hover:text-blue-200 transition">Выйти</a>
+                    {% else %}
+                        <a href="/login" class="ml-4 hover:text-blue-200 transition">Войти</a>
+                    {% endif %}
                 </div>
             </div>
         </div>

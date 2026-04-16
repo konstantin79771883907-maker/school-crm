@@ -9,19 +9,23 @@ This is the main FastAPI application file that:
 - Provides startup event handlers
 """
 
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends, HTTPException, Form, Response, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlmodel import Session, select
 from contextlib import asynccontextmanager
 import os
+from datetime import timedelta
+from typing import Optional
 
 from app.database import create_db_and_tables, get_session, engine
 from app.models.user import User
 from app.models.category import Category
 from app.models.ticket import Ticket
 from app.routers import users, tickets, categories, comments
+from app.routers.users import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
+from app.schemas.user import UserLogin
 
 # Templates directory setup
 templates_directory = os.path.join(os.path.dirname(__file__), "templates")
@@ -121,6 +125,8 @@ app.include_router(comments.router)
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, session: Session = Depends(get_session)):
     """Dashboard page with statistics."""
+    current_user = get_current_user_from_cookie(request, session)
+    
     # Get statistics
     total_tickets = len(session.exec(select(Ticket)).all())
     open_tickets = len(session.exec(
@@ -143,30 +149,38 @@ async def home(request: Request, session: Session = Depends(get_session)):
         "open_tickets": open_tickets,
         "in_progress_tickets": in_progress_tickets,
         "resolved_tickets": resolved_tickets,
-        "recent_tickets": recent_tickets
+        "recent_tickets": recent_tickets,
+        "current_user": current_user
     })
 
 
 @app.get("/tickets", response_class=HTMLResponse)
 async def tickets_page(request: Request, session: Session = Depends(get_session)):
     """Tickets list page."""
+    current_user = get_current_user_from_cookie(request, session)
     all_tickets = session.exec(
         select(Ticket).order_by(Ticket.created_at.desc())
     ).all()
     return templates.TemplateResponse("tickets.html", {
         "request": request,
-        "tickets": all_tickets
+        "tickets": all_tickets,
+        "current_user": current_user
     })
 
 
 @app.get("/tickets/new", response_class=HTMLResponse)
 async def new_ticket_page(request: Request, session: Session = Depends(get_session)):
     """New ticket form page."""
+    current_user = get_current_user_from_cookie(request, session)
+    if not current_user:
+        return RedirectResponse(url="/login")
+    
     all_categories = session.exec(select(Category)).all()
     return templates.TemplateResponse("ticket_form.html", {
         "request": request,
         "categories": all_categories,
-        "is_edit": False
+        "is_edit": False,
+        "current_user": current_user
     })
 
 
@@ -177,6 +191,7 @@ async def ticket_detail_page(
     session: Session = Depends(get_session)
 ):
     """Ticket detail page."""
+    current_user = get_current_user_from_cookie(request, session)
     ticket = session.get(Ticket, ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -194,15 +209,79 @@ async def ticket_detail_page(
         "request": request,
         "ticket": ticket,
         "comments": comments,
-        "categories": all_categories
+        "categories": all_categories,
+        "current_user": current_user
     })
 
 
 @app.get("/categories", response_class=HTMLResponse)
 async def categories_page(request: Request, session: Session = Depends(get_session)):
     """Categories management page."""
+    current_user = get_current_user_from_cookie(request, session)
     all_categories = session.exec(select(Category).order_by(Category.name)).all()
     return templates.TemplateResponse("categories.html", {
         "request": request,
-        "categories": all_categories
+        "categories": all_categories,
+        "current_user": current_user
     })
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Login page."""
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.post("/login", response_class=JSONResponse)
+async def login(request: Request, form_data: UserLogin = Depends()):
+    """Handle login and set cookie."""
+    with Session(engine) as session:
+        user = session.exec(select(User).where(User.username == form_data.username)).first()
+        
+        if not user or not verify_password(form_data.password, user.hashed_password):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Incorrect username or password"}
+            )
+        
+        access_token = create_access_token(
+            data={"sub": user.username},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        
+        response = JSONResponse(content={"success": True, "username": user.username})
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax"
+        )
+        return response
+
+
+@app.get("/logout")
+async def logout():
+    """Handle logout and clear cookie."""
+    response = RedirectResponse(url="/login")
+    response.delete_cookie(key="access_token")
+    return response
+
+
+def get_current_user_from_cookie(request: Request, session: Session = Depends(get_session)) -> Optional[User]:
+    """Get current user from cookie."""
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    
+    try:
+        from jose import jwt, JWTError
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        
+        user = session.exec(select(User).where(User.username == username)).first()
+        return user
+    except (JWTError, Exception):
+        return None
