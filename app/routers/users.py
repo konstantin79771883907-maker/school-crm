@@ -9,7 +9,7 @@ Provides REST API endpoints for user management:
 - DELETE /api/users/{id} - Delete user
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Request, Response
 from sqlmodel import Session, select
 from typing import List, Optional
 from passlib.context import CryptContext
@@ -75,16 +75,97 @@ async def get_current_user(token: str, session: Session = Depends(get_session)) 
     return user
 
 
+async def get_current_user_from_cookie(request: Request, session: Session = Depends(get_session)) -> Optional[User]:
+    """Get current user from cookie."""
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        
+        user = session.exec(select(User).where(User.username == username)).first()
+        return user
+    except (JWTError, Exception):
+        return None
+
+
+async def get_current_user_from_cookie_with_token(session: Session = Depends(get_session), request: Request = None) -> Optional[User]:
+    """Get current user from cookie or Authorization header."""
+    # Try cookie first
+    if request:
+        token = request.cookies.get("access_token")
+        if token:
+            try:
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                username: str = payload.get("sub")
+                if username:
+                    user = session.exec(select(User).where(User.username == username)).first()
+                    if user:
+                        return user
+            except (JWTError, Exception):
+                pass
+    
+    # Try Authorization header
+    auth_header = request.headers.get("Authorization") if request else None
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username: str = payload.get("sub")
+            if username:
+                user = session.exec(select(User).where(User.username == username)).first()
+                if user:
+                    return user
+        except (JWTError, Exception):
+            pass
+    
+    return None
+
+
+def require_auth(current_user: User = Depends(get_current_user_from_cookie_with_token)):
+    """Dependency to require authentication."""
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return current_user
+
+
+def require_role(required_roles: list[str]):
+    """Dependency to require specific roles."""
+    async def role_checker(current_user: User = Depends(require_auth)):
+        if current_user.role not in required_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Role {current_user.role} is not authorized. Required: {required_roles}"
+            )
+        return current_user
+    return role_checker
+
+
 @router.get("/", response_model=List[UserResponse])
-def get_users(session: Session = Depends(get_session)):
-    """Get all users."""
+def get_users(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_auth)
+):
+    """Get all users (requires authentication)."""
     users = session.exec(select(User)).all()
     return users
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_user(user_data: UserCreate, session: Session = Depends(get_session)):
-    """Create a new user."""
+def create_user(
+    user_data: UserCreate, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["admin"]))
+):
+    """Create a new user (admin only)."""
     # Check if username already exists
     existing_user = session.exec(
         select(User).where(User.username == user_data.username)
@@ -116,8 +197,12 @@ def create_user(user_data: UserCreate, session: Session = Depends(get_session)):
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, session: Session = Depends(get_session)):
-    """Get a specific user by ID."""
+def get_user(
+    user_id: int, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_auth)
+):
+    """Get a specific user by ID (requires authentication)."""
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(
@@ -131,9 +216,10 @@ def get_user(user_id: int, session: Session = Depends(get_session)):
 def update_user(
     user_id: int,
     user_data: UserUpdate,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["admin"]))
 ):
-    """Update an existing user."""
+    """Update an existing user (admin only)."""
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(
@@ -157,8 +243,12 @@ def update_user(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, session: Session = Depends(get_session)):
-    """Delete a user."""
+def delete_user(
+    user_id: int, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["admin"]))
+):
+    """Delete a user (admin only)."""
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(
@@ -172,8 +262,11 @@ def delete_user(user_id: int, session: Session = Depends(get_session)):
 
 
 @router.post("/token", response_model=Token)
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
-    """Login and get access token."""
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(), 
+    session: Session = Depends(get_session)
+):
+    """Login and get access token (OAuth2 compatible)."""
     user = session.exec(select(User).where(User.username == form_data.username)).first()
     
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -188,3 +281,36 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), ses
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/login", response_model=UserResponse)
+def login_with_cookie(
+    form_data: UserLogin,
+    session: Session = Depends(get_session),
+    response: Response = None
+):
+    """Login and set cookie (cookie-based auth)."""
+    user = session.exec(select(User).where(User.username == form_data.username)).first()
+    
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password"
+        )
+    
+    access_token = create_access_token(
+        data={"sub": user.username},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    
+    # Set cookie on response
+    if response:
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax"
+        )
+    
+    return user
