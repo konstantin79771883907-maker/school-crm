@@ -1,0 +1,17 @@
+# FastAPI - Modern web framework for building APIs
+fastapi==0.104.1
+
+# Uvicorn - ASGI server for running FastAPI
+uvicorn[standard]==0.24.0
+
+# SQLModel - SQLAlchemy + Pydantic for database ORM
+sqlmodel==0.0.14
+
+# Jinja2 - Template engine for HTML rendering
+jinja2==3.1.2
+
+# Python-multipart - For handling form data
+python-multipart==0.0.6
+
+# Aiofiles - Async file operations
+aiofiles==23.2.1

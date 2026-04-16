@@ -1,0 +1,15 @@
+[Unit]
+Description=School CRM GitHub Webhook Handler
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/school-crm
+Environment="PATH=/opt/school-crm/venv/bin"
+ExecStart=/opt/school-crm/venv/bin/python /opt/school-crm/deploy_hook.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
