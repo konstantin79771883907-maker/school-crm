@@ -72,18 +72,20 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
     const errorDiv = document.getElementById('error-message');
     
     try {
-        const response = await fetch('/login', {
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
+        
+        const response = await fetch('/api/users/token', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({ username, password })
+            body: formData
         });
         
         const data = await response.json();
         
-        if (response.ok && data.success) {
-            window.location.href = '/';
+        if (response.ok && data.access_token) {
+            localStorage.setItem('access_token', data.access_token);
+            window.location.href = '/tickets';
         } else {
             errorDiv.textContent = data.detail || 'Ошибка входа';
             errorDiv.classList.remove('hidden');
