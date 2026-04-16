@@ -37,9 +37,9 @@ class Ticket(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Foreign keys
-    user_id: int = Field(foreign_key="users.id", ondelete="CASCADE")
-    category_id: Optional[int] = Field(default=None, foreign_key="categories.id", ondelete="SET NULL")
-    assigned_to_id: Optional[int] = Field(default=None, foreign_key="users.id", ondelete="SET NULL")
+    user_id: int = Field(foreign_key="users.id")
+    category_id: Optional[int] = Field(default=None, foreign_key="categories.id")
+    assigned_to_id: Optional[int] = Field(default=None, foreign_key="users.id")
     
     # Relationships
     # Note: Relationships are defined here but imported in __init__.py

@@ -27,8 +27,8 @@ class Comment(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Foreign keys
-    ticket_id: int = Field(foreign_key="tickets.id", ondelete="CASCADE")
-    user_id: int = Field(foreign_key="users.id", ondelete="CASCADE")
+    ticket_id: int = Field(foreign_key="tickets.id")
+    user_id: int = Field(foreign_key="users.id")
     
     class Config:
         table = True
