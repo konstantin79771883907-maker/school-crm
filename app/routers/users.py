@@ -137,7 +137,7 @@ def require_auth(current_user: User = Depends(get_current_user_from_cookie_with_
     return current_user
 
 
-def require_role(required_roles: list[str]):
+def require_role(required_roles: List[str]):
     """Dependency to require specific roles."""
     async def role_checker(current_user: User = Depends(require_auth)):
         if current_user.role not in required_roles:
@@ -187,8 +187,12 @@ def create_user(
         )
     
     # Create user with hashed password
-    user = User.model_validate(user_data)
-    user.hashed_password = hash_password(user_data.password)
+    user = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hash_password(user_data.password),
+        role=user_data.role
+    )
     
     session.add(user)
     session.commit()
